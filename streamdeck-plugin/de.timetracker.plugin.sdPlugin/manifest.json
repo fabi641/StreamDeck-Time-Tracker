@@ -13,14 +13,38 @@
   ],
   "Software": { "MinimumVersion": "6.0" },
   "SDKVersion": 2,
-  "Version": "1.0.0",
+  "Version": "2.0.0",
   "UUID": "de.timetracker.plugin",
   "Actions": [
     {
       "Icon": "images/action-icon",
-      "Name": "Projekt tracken",
-      "States": [{ "Title": "Start" }, { "Title": "Stop" }],
-      "UUID": "de.timetracker.track"
+      "Name": "Arbeitstimer",
+      "States": [
+        { "Title": "Start" },
+        { "Title": "Stop"  }
+      ],
+      "Tooltip": "Arbeitszeit starten oder stoppen",
+      "UUID": "de.timetracker.worktimer"
+    },
+    {
+      "Icon": "images/action-icon",
+      "Name": "Projekt",
+      "PropertyInspectorPath": "property_inspector/inspector.html",
+      "States": [
+        { "Title": "Projekt" },
+        { "Title": "Aktiv"   }
+      ],
+      "Tooltip": "Projekt aktivieren (nur eines gleichzeitig aktiv)",
+      "UUID": "de.timetracker.project"
+    },
+    {
+      "Icon": "images/action-icon",
+      "Name": "Tageszeit",
+      "States": [
+        { "Title": "00:00" }
+      ],
+      "Tooltip": "Heutige Gesamtarbeitszeit (nur Anzeige)",
+      "UUID": "de.timetracker.daytotal"
     }
   ]
 }

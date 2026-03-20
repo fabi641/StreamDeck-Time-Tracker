@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Projekt Button</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1e1e1e; color: #d4d4d4; font-family: 'Segoe UI', sans-serif; font-size: 13px; padding: 12px; }
+    label { display: block; color: #9cdcfe; margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    select, input[type="text"] {
+      width: 100%; background: #3c3c3c; border: 1px solid #555; color: #d4d4d4;
+      border-radius: 4px; padding: 6px 8px; font-size: 13px;
+    }
+    .section { background: #2a2a2a; border-radius: 6px; padding: 10px; margin-bottom: 10px; }
+    .hint { color: #888; font-size: 11px; margin-top: 6px; }
+    .debug { background: #1a1a2e; border: 1px solid #333; border-radius: 4px; padding: 8px; font-size: 11px; color: #7ec8e3; margin-top: 10px; font-family: monospace; line-height: 1.6; }
+    .btn { background: #4f8ef7; border: none; color: #fff; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 12px; margin-top: 8px; width: 100%; }
+    .btn:hover { opacity: 0.85; }
+  </style>
+</head>
+<body>
+
+<div class="section">
+  <label>Projekt auswaehlen</label>
+  <select id="projectSelect" onchange="onProjectChange()">
+    <option value="">Lade Projekte...</option>
+  </select>
+</div>
+
+<div class="section">
+  <label>Button-Beschriftung (max. 8 Zeichen)</label>
+  <input type="text" id="labelInput" maxlength="8" placeholder="z.B. Alpha">
+</div>
+
+<button class="btn" onclick="saveSettings()">Speichern</button>
+
+<div class="debug" id="debug">Initialisiere...</div>
+
+<script>
+  var ws        = null;
+  var piUUID    = null;
+  var savedId   = '';
+  var savedLabel= '';
+  var log       = [];
+
+  function dbg(msg) {
+    log.unshift(msg);
+    if (log.length > 8) log.pop();
+    document.getElementById('debug').textContent = log.join('\n');
+  }
+
+  // SD ruft diese Funktion mit 5 Parametern auf
+  function connectElgatoStreamDeckSocket(port, uuid, registerEvent, inInfo, inActionInfo) {
+    piUUID = uuid;
+    dbg('connect port=' + port);
+
+    // Settings synchron aus inActionInfo lesen
+    try {
+      var ai = JSON.parse(inActionInfo);
+      var s  = ai && ai.payload && ai.payload.settings ? ai.payload.settings : {};
+      savedId    = s.projectId || '';
+      savedLabel = s.label     || '';
+      dbg('inActionInfo settings: id=' + savedId + ' label=' + savedLabel);
+    } catch(e) {
+      dbg('inActionInfo parse error: ' + e);
+    }
+
+    ws = new WebSocket('ws://127.0.0.1:' + port);
+
+    ws.onopen = function() {
+      dbg('ws open - registering');
+      ws.send(JSON.stringify({ event: registerEvent, uuid: piUUID }));
+      loadProjects();
+    };
+
+    ws.onmessage = function(evt) {
+      var data = JSON.parse(evt.data);
+      dbg('msg: ' + data.event);
+      if (data.event === 'didReceiveSettings') {
+        var s = data.payload && data.payload.settings ? data.payload.settings : {};
+        dbg('didReceiveSettings: id=' + (s.projectId||'') + ' lbl=' + (s.label||''));
+        if (s.projectId && !savedId) {
+          savedId    = s.projectId;
+          savedLabel = s.label || '';
+        }
+        applySettings(s);
+      }
+    };
+
+    ws.onerror = function(e) { dbg('ws error: ' + e); };
+    ws.onclose = function()  { dbg('ws closed'); };
+  }
+
+  function loadProjects() {
+    dbg('loading projects...');
+    fetch('http://localhost:3847/api/projects')
+      .then(function(r) { return r.json(); })
+      .then(function(projects) {
+        var sel = document.getElementById('projectSelect');
+        sel.innerHTML = '<option value="">-- Kein Projekt --</option>';
+        projects.forEach(function(p) {
+          var opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name + (p.kostenstelle ? ' (' + p.kostenstelle + ')' : '');
+          sel.appendChild(opt);
+        });
+        dbg('loaded ' + projects.length + ' projects');
+        // Gespeicherte Auswahl setzen
+        if (savedId) {
+          sel.value = savedId;
+          dbg('restored: ' + (sel.value === savedId ? 'OK' : 'FAILED - id not found'));
+        }
+        if (savedLabel) {
+          document.getElementById('labelInput').value = savedLabel;
+        }
+        // getSettings als Fallback anfordern
+        wsSend({ event: 'getSettings', context: piUUID });
+      })
+      .catch(function(e) { dbg('fetch error: ' + e); });
+  }
+
+  function applySettings(s) {
+    if (!s) return;
+    var sel = document.getElementById('projectSelect');
+    if (s.projectId) {
+      sel.value = s.projectId;
+      dbg('apply: sel.value=' + sel.value + ' wanted=' + s.projectId);
+    }
+    if (s.label) document.getElementById('labelInput').value = s.label;
+  }
+
+  function onProjectChange() {
+    var sel = document.getElementById('projectSelect');
+    var lbl = document.getElementById('labelInput');
+    if (!lbl.value) {
+      var name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+      lbl.value = name.split(' (')[0].substring(0, 8);
+    }
+    saveSettings();
+  }
+
+  function saveSettings() {
+    var sel = document.getElementById('projectSelect');
+    var lbl = document.getElementById('labelInput');
+    var payload = { projectId: sel.value, label: lbl.value };
+    savedId    = sel.value;
+    savedLabel = lbl.value;
+    dbg('saving: id=' + sel.value + ' lbl=' + lbl.value + ' wsState=' + (ws ? ws.readyState : 'null'));
+    var ok = wsSend({ event: 'setSettings', context: piUUID, payload: payload });
+    dbg('setSettings sent: ' + ok);
+  }
+
+  function wsSend(obj) {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify(obj));
+      return true;
+    }
+    dbg('wsSend FAILED: state=' + (ws ? ws.readyState : 'null'));
+    return false;
+  }
+
+  document.getElementById('labelInput').addEventListener('change', saveSettings);
+</script>
+</body>
+</html>
