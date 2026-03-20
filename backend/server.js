@@ -51,9 +51,33 @@ function openEntry(db) {
   };
 }
 
+
+// ── SSE Push ──────────────────────────────────────────────────────────────────
+const sseClients = new Set();
+
+function pushStatusUpdate() {
+  if (sseClients.size === 0) return;
+  const db = loadDB();
+  const today = new Date().toISOString().slice(0, 10);
+  const todaySeconds = db.entries.filter(e => e.startTime.startsWith(today) && e.duration).reduce((s, e) => s + e.duration, 0);
+  const payload = JSON.stringify({ workTimer: db.workTimer, activeProjectId: db.activeProjectId, currentEntry: db.currentEntry, todaySeconds });
+  for (const res of sseClients) { try { res.write(`data: ${payload}\n\n`); } catch (_) { sseClients.delete(res); } }
+}
+
+app.get('/api/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  res.write('data: {"connected":true}\n\n');
+  sseClients.add(res);
+  req.on('close', () => sseClients.delete(res));
+});
+
 app.get('/api/status', (req, res) => {
   const db = loadDB();
   const today = new Date().toISOString().slice(0, 10);
+  // Only completed entries — client adds running entry elapsed
   const todaySeconds = db.entries.filter(e => e.startTime.startsWith(today) && e.duration).reduce((s, e) => s + e.duration, 0);
   let currentSeconds = db.currentEntry ? Math.floor((Date.now() - new Date(db.currentEntry.startTime)) / 1000) : 0;
   res.json({ workTimer: db.workTimer, activeProjectId: db.activeProjectId, currentEntry: db.currentEntry, currentSeconds, todaySeconds, projects: db.projects || [] });
@@ -64,6 +88,7 @@ app.post('/api/worktimer/toggle', (req, res) => {
   if (db.workTimer.running) { closeCurrentEntry(db); db.workTimer = { running: false }; }
   else { db.workTimer = { running: true }; openEntry(db); }
   saveDB(db);
+  pushStatusUpdate();
   res.json({ success: true, workTimer: db.workTimer, currentEntry: db.currentEntry });
 });
 
@@ -74,6 +99,7 @@ app.post('/api/project/select', (req, res) => {
   if (db.workTimer.running) { closeCurrentEntry(db); db.activeProjectId = newId; openEntry(db); }
   else { db.activeProjectId = newId; }
   saveDB(db);
+  pushStatusUpdate();
   res.json({ success: true, activeProjectId: db.activeProjectId, currentEntry: db.currentEntry });
 });
 
