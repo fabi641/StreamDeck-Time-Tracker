@@ -1,0 +1,66 @@
+{
+  "workTimer": {
+    "running": false
+  },
+  "activeProjectId": null,
+  "currentEntry": null,
+  "entries": [],
+  "projects": [
+    {
+      "id": "910ceb53-83a1-4e6f-a5e8-7ea7b08d997f",
+      "name": "TC80",
+      "kostenstelle": "Turbo",
+      "taetigkeit": "Serienbetreuung",
+      "color": "#6366f1"
+    },
+    {
+      "id": "b134b6a6-39a8-47f8-8253-ee17c4c7a2a3",
+      "name": "BC800",
+      "kostenstelle": "DryPumps",
+      "taetigkeit": "Serienbetreuung",
+      "color": "#10b981"
+    },
+    {
+      "id": "5ce07298-15f4-43ee-9fb3-49f8bc2e3d25",
+      "name": "Kaffee",
+      "kostenstelle": "EDIC",
+      "taetigkeit": "Pause",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "e2cad060-c776-4fc4-a580-b8ab8bed04c5",
+      "name": "HiScroll46",
+      "kostenstelle": "DryPumps",
+      "taetigkeit": "Serienbetreuung",
+      "color": "#ef4444"
+    },
+    {
+      "id": "5cfa4c02-6866-4c47-8121-90bfcd328a11",
+      "name": "BC800",
+      "kostenstelle": "DryPumps",
+      "taetigkeit": "Produktentwicklung",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "e0f9baa5-5d5d-4948-a709-48cf3efe9428",
+      "name": "HiLobe",
+      "kostenstelle": "Industrial",
+      "taetigkeit": "Serienbetreuung",
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "5e733660-8cdf-4786-9264-24cf660dd455",
+      "name": "Schulung",
+      "kostenstelle": "EDIC",
+      "taetigkeit": "Schulung",
+      "color": "#14b8a6"
+    },
+    {
+      "id": "22236308-076d-45fd-9d9e-039d8dc5da1f",
+      "name": "Meetings",
+      "kostenstelle": "EDIC",
+      "taetigkeit": "Meeting",
+      "color": "#f97316"
+    }
+  ]
+}
