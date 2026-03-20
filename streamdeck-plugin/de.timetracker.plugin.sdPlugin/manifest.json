@@ -1,0 +1,26 @@
+{
+  "Author": "TimeTracker",
+  "Category": "TimeTracker",
+  "CategoryIcon": "images/category-icon",
+  "CodePathWin": "plugin.html",
+  "CodePath": "plugin.html",
+  "Description": "Zeiterfassung fuer Projekte direkt vom Stream Deck.",
+  "Icon": "images/plugin-icon",
+  "Name": "TimeTracker",
+  "OS": [
+    { "Platform": "windows", "MinimumVersion": "10" },
+    { "Platform": "mac",     "MinimumVersion": "10.15" }
+  ],
+  "Software": { "MinimumVersion": "6.0" },
+  "SDKVersion": 2,
+  "Version": "1.0.0",
+  "UUID": "de.timetracker.plugin",
+  "Actions": [
+    {
+      "Icon": "images/action-icon",
+      "Name": "Projekt tracken",
+      "States": [{ "Title": "Start" }, { "Title": "Stop" }],
+      "UUID": "de.timetracker.track"
+    }
+  ]
+}
