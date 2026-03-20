@@ -1,8 +1,804 @@
 <!DOCTYPE html>
 <html lang="de">
-<head><meta charset="UTF-8"><title>TimeTracker</title></head>
-<body style="background:#0f1117;color:#e2e8f0;font-family:sans-serif;padding:24px">
-  <h1>⏱ TimeTracker</h1>
-  <p>Dashboard wird geladen...</p>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TimeTracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#0f1117; --card:#1a1d27; --card2:#212436; --border:#2e3148;
+    --text:#e2e8f0; --muted:#6b7280; --accent:#6366f1; --green:#10b981;
+    --red:#ef4444; --warn:#f59e0b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+
+  /* Header */
+  header{background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;position:sticky;top:0;z-index:10;}
+  .logo{font-size:17px;font-weight:700;padding:16px 20px 16px 0;border-right:1px solid var(--border);margin-right:4px;}
+  .logo span{color:var(--accent);}
+  nav{display:flex;gap:2px;flex:1;padding:0 8px;}
+  nav button{background:none;border:none;color:var(--muted);padding:18px 14px;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
+  nav button:hover{color:var(--text);}
+  nav button.active{color:var(--text);border-bottom-color:var(--accent);}
+  .month-nav{display:flex;align-items:center;gap:8px;margin-left:auto;}
+  .month-nav button{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;}
+  .month-nav button:hover{background:var(--border);}
+  #monthLabel{font-size:13px;font-weight:600;min-width:130px;text-align:center;}
+
+  /* Zeitraum-Auswahl */
+  .period-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .period-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
+  .period-presets{display:flex;gap:6px;flex-wrap:wrap;flex:1;}
+  .period-btn{background:var(--card2);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:500;transition:all .15s;white-space:nowrap;}
+  .period-btn:hover{color:var(--text);border-color:var(--accent);}
+  .period-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .period-custom{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .period-custom input[type="date"]{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px;cursor:pointer;}
+  .period-custom input[type="date"]:focus{outline:none;border-color:var(--accent);}
+  .period-custom input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);}
+  .period-sep{color:var(--muted);font-size:12px;}
+  .period-range-label{font-size:12px;color:var(--muted);margin-left:4px;}
+
+  /* Layout */
+  main{padding:20px 24px;max-width:1200px;margin:0 auto;}
+  .page{display:none;flex-direction:column;gap:16px;}
+  .page.active{display:flex;}
+
+  /* Cards */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;}
+  .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+  .card-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+
+  /* Live Status */
+  .status-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;}
+  .status-bar.running{border-color:var(--green);box-shadow:0 0 0 1px var(--green)22;}
+  .sb-left{display:flex;align-items:center;gap:14px;}
+  .sb-dot{width:12px;height:12px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+  .sb-dot.on{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .sb-text .title{font-size:15px;font-weight:600;}
+  .sb-text .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+  .sb-timer{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--green);text-align:right;}
+  .sb-timer.idle{color:var(--muted);font-size:20px;}
+  .sb-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+  .btn-toggle{border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .15s;}
+  .btn-toggle:hover{opacity:.85;}
+  .btn-start{background:var(--green);color:#fff;}
+  .btn-stop{background:var(--red);color:#fff;}
+
+  /* Projekt-Buttons */
+  .project-grid{display:flex;flex-wrap:wrap;gap:10px;}
+  .proj-btn{
+    background:var(--card2);border:2px solid var(--border);border-radius:10px;
+    padding:10px 16px;cursor:pointer;text-align:left;min-width:140px;
+    transition:transform .1s,border-color .15s,background .15s;
+    display:flex;flex-direction:column;gap:3px;
+  }
+  .proj-btn:hover{transform:translateY(-2px);border-color:var(--accent);}
+  .proj-btn.active{border-color:var(--green);background:rgba(16,185,129,.08);}
+  .proj-btn .pname{font-weight:600;font-size:13px;}
+  .proj-btn .psub{font-size:11px;color:var(--muted);}
+  .proj-btn .pind{width:8px;height:8px;border-radius:50%;background:var(--border);margin-bottom:2px;}
+  .proj-btn.active .pind{background:var(--green);}
+
+  /* Stats */
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .stat-card .val{font-size:22px;font-weight:700;color:var(--accent);}
+  .stat-card .lbl{font-size:11px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.5px;}
+
+  /* Charts */
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:680px){.charts-row{grid-template-columns:1fr;}}
+  .chart-wrap{position:relative;height:210px;}
+
+  /* Project summary */
+  .proj-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .proj-row:last-child{border-bottom:none;}
+  .proj-row .pname{flex:1;font-size:13px;}
+  .bar-bg{flex:2;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:3px;transition:width .5s;}
+  .phours{font-size:13px;font-weight:600;color:var(--accent);min-width:48px;text-align:right;}
+
+  /* Table */
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;}
+  th{padding:9px 12px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:9px 12px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--card2);}
+  .cdot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;flex-shrink:0;}
+  .del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 6px;border-radius:4px;}
+  .del-btn:hover{color:var(--red);background:rgba(239,68,68,.1);}
+  .note-in{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:12px;width:100%;min-width:100px;}
+  .note-in:focus{outline:none;border-color:var(--accent);}
+  .empty{text-align:center;color:var(--muted);padding:32px;font-size:13px;}
+
+  /* Buttons */
+  .btn{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 14px;cursor:pointer;font-size:12px;transition:background .15s;}
+  .btn:hover{background:var(--border);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.primary:hover{opacity:.85;}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+
+  /* Config */
+  .config-item{display:flex;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .config-item:last-child{border-bottom:none;}
+  .config-item input[type="text"]{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;}
+  .config-item input[type="text"]:focus{outline:none;border-color:var(--accent);}
+  .config-item input[type="color"]{width:34px;height:32px;padding:2px;border:1px solid var(--border);border-radius:4px;background:var(--card2);cursor:pointer;flex-shrink:0;}
+  .add-btn{background:none;border:1px dashed var(--border);color:var(--muted);border-radius:6px;padding:9px 16px;cursor:pointer;font-size:13px;width:100%;margin-top:8px;transition:border-color .15s,color .15s;}
+  .add-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .save-btn{background:var(--accent);border:none;color:#fff;border-radius:8px;padding:10px 24px;cursor:pointer;font-size:14px;font-weight:600;margin-top:16px;}
+  .save-btn:hover{opacity:.85;}
+  .field-hint{font-size:11px;color:var(--muted);margin-bottom:10px;}
+
+  /* Toast */
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--green);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;z-index:999;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:flex;align-items:center;justify-content:center;}
+  .modal{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:440px;margin:20px;}
+  .modal h3{font-size:16px;margin-bottom:18px;}
+  .modal label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px;}
+  .modal input,.modal select{width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;}
+  .modal input:focus,.modal select:focus{outline:none;border-color:var(--accent);}
+  .modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⏱ <span>Time</span>Tracker</div>
+  <nav>
+    <button class="active" onclick="showPage('dashboard',this)">📊 Dashboard</button>
+    <button onclick="showPage('entries',this)">📋 Einträge</button>
+    <button onclick="showPage('config',this)">⚙️ Konfiguration</button>
+  </nav>
+  <!-- Monatnavigation nur für Einträge-Seite -->
+  <div class="month-nav" id="monthNavHeader" style="display:none">
+    <button onclick="changeMonth(-1)">◀</button>
+    <span id="monthLabel"></span>
+    <button onclick="changeMonth(+1)">▶</button>
+  </div>
+</header>
+
+<main>
+
+<!-- ══════════════ DASHBOARD ══════════════ -->
+<div id="page-dashboard" class="page active">
+
+  <!-- Arbeitstimer -->
+  <div class="status-bar" id="statusBar">
+    <div class="sb-left">
+      <div class="sb-dot" id="sbDot"></div>
+      <div class="sb-text">
+        <div class="title" id="sbTitle">Timer gestoppt</div>
+        <div class="sub"   id="sbSub">Kein Projekt ausgewählt</div>
+      </div>
+    </div>
+    <div class="sb-timer idle" id="sbTimer">--:--:--</div>
+    <div style="text-align:right;min-width:80px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Heute gesamt</div>
+      <div style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent)" id="sbTodayTotal">--:--</div>
+    </div>
+    <div class="sb-actions">
+      <button class="btn-toggle btn-start" id="btnStart" onclick="toggleTimer()">▶ Starten</button>
+      <button class="btn-toggle btn-stop"  id="btnStop"  onclick="toggleTimer()" style="display:none">⏹ Stoppen</button>
+    </div>
+  </div>
+
+  <!-- Projektauswahl -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Projekt auswählen</span>
+      <span style="font-size:11px;color:var(--muted)" id="activeProjHint">Kein Projekt aktiv</span>
+    </div>
+    <div class="project-grid" id="projectGrid">
+      <div style="color:var(--muted);font-size:13px">Noch keine Projekte – unter ⚙️ Konfiguration anlegen</div>
+    </div>
+  </div>
+
+  <!-- Zeitraum-Auswahl -->
+  <div class="period-bar">
+    <span class="period-label">Zeitraum</span>
+    <div class="period-presets">
+      <button class="period-btn" onclick="setPeriod('week')" id="pb-week">Diese Woche</button>
+      <button class="period-btn" onclick="setPeriod('lastweek')" id="pb-lastweek">Letzte Woche</button>
+      <button class="period-btn active" onclick="setPeriod('month')" id="pb-month">Dieser Monat</button>
+      <button class="period-btn" onclick="setPeriod('lastmonth')" id="pb-lastmonth">Letzter Monat</button>
+    </div>
+    <div class="period-custom">
+      <input type="date" id="periodFrom" onchange="setPeriod('custom')">
+      <span class="period-sep">–</span>
+      <input type="date" id="periodTo" onchange="setPeriod('custom')">
+    </div>
+    <span class="period-range-label" id="periodRangeLabel"></span>
+    <button class="btn primary" onclick="exportXLSX()" style="white-space:nowrap;margin-left:4px">📥 Excel</button>
+  </div>
+
+  <!-- Statistiken -->
+  <div class="stats-row">
+    <div class="stat-card"><div class="val" id="statTotal">–</div><div class="lbl">Stunden gesamt</div></div>
+    <div class="stat-card"><div class="val" id="statProjects">–</div><div class="lbl">Projekte</div></div>
+    <div class="stat-card"><div class="val" id="statDays">–</div><div class="lbl">Arbeitstage</div></div>
+    <div class="stat-card"><div class="val" id="statAvg">–</div><div class="lbl">Ø Std/Tag</div></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="card"><div class="card-title" style="margin-bottom:12px">Stunden nach Projekt</div><div class="chart-wrap"><canvas id="chartProject"></canvas></div></div>
+    <div class="card"><div class="card-title" style="margin-bottom:12px">Stunden nach Tätigkeit</div><div class="chart-wrap"><canvas id="chartActivity"></canvas></div></div>
+  </div>
+  <div class="card"><div class="card-title" style="margin-bottom:12px">Tagesverlauf</div><div class="chart-wrap" style="height:150px"><canvas id="chartDay"></canvas></div></div>
+
+  <!-- Projektübersicht -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">Projektübersicht</div>
+    <div id="projSummary"><div class="empty">Keine Daten</div></div>
+  </div>
+
+</div>
+
+<!-- ══════════════ EINTRÄGE ══════════════ -->
+<div id="page-entries" class="page">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Einträge – <span id="entriesMonth"></span></span>
+      <div class="btn-row">
+        <button class="btn" onclick="openManualModal()">✏️ Manuell erfassen</button>
+        <button class="btn primary" onclick="exportXLSX()">📥 Excel Export</button>
+        <button class="btn" onclick="exportCSV()">CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Datum</th><th>Start</th><th>Ende</th><th>Dauer</th><th>Projekt</th><th>Kostenstelle</th><th>Tätigkeit</th><th>Notiz</th><th></th></tr></thead>
+        <tbody id="entriesBody"><tr><td colspan="9" class="empty">Keine Einträge</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ KONFIGURATION ══════════════ -->
+<div id="page-config" class="page">
+  <div class="card">
+    <h2 style="font-size:16px;margin-bottom:6px">⚙️ Projekte verwalten</h2>
+    <p class="field-hint" style="margin-bottom:16px">Felder: Farbe · Projektname · Kostenstelle · Tätigkeitstyp — alle Felder sind Freitext.</p>
+    <div class="field-hint" style="display:flex;gap:24px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:4px;font-weight:600;color:var(--muted)">
+      <span style="width:34px"></span>
+      <span style="flex:2">Projektname *</span>
+      <span style="flex:2">Kostenstelle</span>
+      <span style="flex:2">Tätigkeitstyp</span>
+      <span style="width:32px"></span>
+    </div>
+    <div id="configProjects"></div>
+    <button class="add-btn" onclick="addProjectRow()">+ Projekt hinzufügen</button>
+    <br>
+    <button class="save-btn" onclick="saveProjects()">💾 Speichern</button>
+  </div>
+  <div class="card">
+    <h2 style="font-size:15px;margin-bottom:10px">🎮 Stream Deck</h2>
+    <p style="color:var(--muted);font-size:13px;line-height:1.8">
+      Plugin-Ordner (Windows):<br>
+      <code style="background:var(--card2);padding:4px 10px;border-radius:5px;font-size:12px;display:inline-block;margin:4px 0">%appdata%\Elgato\StreamDeck\Plugins\de.timetracker.plugin.sdPlugin</code><br>
+      Im Property Inspector eines Projekt-Buttons hier angelegte Projekte per Dropdown auswählen.<br>
+      Dashboard und Stream Deck sind vollständig synchronisiert — Aktionen in einem spiegeln sich sofort im anderen wider.
+    </p>
+  </div>
+</div>
+
+</main>
+
+<div id="toast"></div>
+
+<!-- Modal: Eintrag anlegen / bearbeiten -->
+<div id="modalManual" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modalManualTitle">✏️ Eintrag hinzufügen</h3>
+    <input type="hidden" id="manEditId">
+    <label>Projekt</label>
+    <select id="manProject"></select>
+    <label>Kostenstelle</label>
+    <input type="text" id="manKostenstelle" placeholder="Optional – überschreibt Projektvorgabe">
+    <label>Tätigkeitstyp</label>
+    <input type="text" id="manTaetigkeit" placeholder="Optional – überschreibt Projektvorgabe">
+    <label>Datum</label><input type="date" id="manDate">
+    <label>Start</label><input type="time" id="manStart">
+    <label>Ende</label><input type="time" id="manEnd">
+    <label>Notiz</label><input type="text" id="manNote" placeholder="Optional">
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('modalManual').style.display='none'">Abbrechen</button>
+      <button class="btn primary" onclick="submitManual()">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:3847/api';
+const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#14b8a6','#f97316','#06b6d4','#84cc16'];
+
+let currentMonth = new Date().toISOString().slice(0,7);
+let status = { workTimer:{running:false}, activeProjectId:null, currentEntry:null, todaySeconds:0 };
+let projects = [];
+let charts = {};
+let timerInterval = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+updateMonthLabel();
+init();
+setInterval(fetchStatus, 10000); // Fallback-Polling
+
+async function init() {
+  await fetchProjects();
+  await fetchStatus();
+  setPeriod('month'); // setzt periodFrom/To und lädt loadSummary
+  connectSSE();
+}
+
+// ── SSE: sofortige Updates vom Backend ───────────────────────────────────────
+function connectSSE() {
+  const src = new EventSource(`${API}/events`);
+  src.onmessage = evt => {
+    try {
+      const data = JSON.parse(evt.data);
+      if (data.connected) return;
+      status = { ...status, ...data };
+      renderStatus();
+    } catch(_) {}
+  };
+  src.onerror = () => { src.close(); setTimeout(connectSSE, 3000); };
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  // Monatsnavigation nur bei Einträge-Seite einblenden
+  document.getElementById('monthNavHeader').style.display = name === 'entries' ? '' : 'none';
+  if(name==='entries') { updateMonthLabel(); loadEntries(); }
+  if(name==='config') renderConfigPage();
+}
+
+function changeMonth(d) {
+  const dt = new Date(currentMonth+'-01');
+  dt.setMonth(dt.getMonth()+d);
+  currentMonth = dt.toISOString().slice(0,7);
+  updateMonthLabel();
+  loadEntries();
+}
+
+function updateMonthLabel() {
+  const d = new Date(currentMonth+'-01');
+  const label = d.toLocaleDateString('de-DE',{month:'long',year:'numeric'});
+  document.getElementById('monthLabel').textContent = label;
+  const el = document.getElementById('entriesMonth');
+  if(el) el.textContent = label;
+}
+
+// ── Zeitraum-Auswahl ──────────────────────────────────────────────────────────
+let periodFrom = '';
+let periodTo   = '';
+let activePeriod = 'month';
+
+function setPeriod(type) {
+  const now = new Date();
+  const iso = d => d.toISOString().slice(0,10);
+
+  if (type === 'week') {
+    const day = now.getDay() || 7; // Mo=1..So=7
+    const mon = new Date(now); mon.setDate(now.getDate() - day + 1);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    periodFrom = iso(mon); periodTo = iso(sun);
+  } else if (type === 'lastweek') {
+    const day = now.getDay() || 7;
+    const mon = new Date(now); mon.setDate(now.getDate() - day - 6);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    periodFrom = iso(mon); periodTo = iso(sun);
+  } else if (type === 'month') {
+    periodFrom = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    periodTo   = iso(new Date(now.getFullYear(), now.getMonth()+1, 0));
+  } else if (type === 'lastmonth') {
+    const d = new Date(now.getFullYear(), now.getMonth(), 0);
+    periodFrom = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+    periodTo   = iso(d);
+  } else if (type === 'custom') {
+    periodFrom = document.getElementById('periodFrom').value;
+    periodTo   = document.getElementById('periodTo').value;
+    if (!periodFrom || !periodTo || periodFrom > periodTo) return;
+  }
+
+  activePeriod = type;
+
+  // Preset-Buttons highlighten
+  ['week','lastweek','month','lastmonth'].forEach(k => {
+    document.getElementById('pb-'+k)?.classList.toggle('active', k === type && type !== 'custom');
+  });
+  // Bei custom: alle preset-Buttons deaktivieren
+  if (type === 'custom') {
+    ['week','lastweek','month','lastmonth'].forEach(k =>
+      document.getElementById('pb-'+k)?.classList.remove('active')
+    );
+  }
+
+  // Datum-Felder auf aktuellen Wert setzen (bei Preset-Klicks)
+  if (type !== 'custom') {
+    document.getElementById('periodFrom').value = periodFrom;
+    document.getElementById('periodTo').value   = periodTo;
+  }
+
+  // Label aktualisieren
+  const fromStr = new Date(periodFrom+'T12:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const toStr   = new Date(periodTo+'T12:00').toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+  document.getElementById('periodRangeLabel').textContent = `${fromStr} – ${toStr}`;
+
+  loadSummary();
+}
+
+function periodQueryParams() {
+  return `from=${periodFrom}&to=${periodTo}`;
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+async function fetchStatus() {
+  try {
+    const r = await fetch(`${API}/status`);
+    status = await r.json();
+    renderStatus();
+  } catch(_) {
+    document.getElementById('sbTitle').textContent = '❌ Backend offline – START_SERVER.bat starten';
+  }
+}
+
+function renderStatus() {
+  const running = status.workTimer && status.workTimer.running;
+  const entry   = status.currentEntry;
+  const bar     = document.getElementById('statusBar');
+  const dot     = document.getElementById('sbDot');
+  const title   = document.getElementById('sbTitle');
+  const sub     = document.getElementById('sbSub');
+  const timer   = document.getElementById('sbTimer');
+  const todayEl = document.getElementById('sbTodayTotal');
+  const btnStart= document.getElementById('btnStart');
+  const btnStop = document.getElementById('btnStop');
+  const hint    = document.getElementById('activeProjHint');
+
+  bar.classList.toggle('running', running);
+  dot.classList.toggle('on', running);
+  btnStart.style.display = running ? 'none' : '';
+  btnStop.style.display  = running ? '' : 'none';
+  timer.classList.toggle('idle', !running);
+
+  const baseTodaySec = status.todaySeconds || 0;
+
+  clearInterval(timerInterval);
+  if (running && entry) {
+    title.textContent = entry.projectName;
+    sub.textContent   = [entry.kostenstelle, entry.taetigkeit].filter(Boolean).join(' · ') || 'Keine weiteren Angaben';
+    const start = new Date(entry.startTime);
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - start) / 1000);
+      timer.textContent = fmtSec(elapsed);
+      const live = baseTodaySec + elapsed;
+      todayEl.textContent = pad(Math.floor(live/3600)) + ':' + pad(Math.floor((live%3600)/60));
+    };
+    tick();
+    timerInterval = setInterval(tick, 1000);
+  } else {
+    title.textContent = running ? 'Timer läuft – Kein Projekt' : 'Timer gestoppt';
+    sub.textContent   = running ? 'Zeit wird als "Kein Projekt" erfasst' : '';
+    timer.textContent = running ? '00:00:00' : '--:--:--';
+    todayEl.textContent = pad(Math.floor(baseTodaySec/3600)) + ':' + pad(Math.floor((baseTodaySec%3600)/60));
+  }
+
+  // Projekt-Buttons
+  const activeId = status.activeProjectId;
+  hint.textContent = activeId ? 'Aktiv: ' + ((projects.find(p=>p.id===activeId)||{}).name||'') : 'Kein Projekt aktiv';
+  document.querySelectorAll('.proj-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.id === activeId);
+  });
+}
+
+// ── Timer toggle ──────────────────────────────────────────────────────────────
+async function toggleTimer() {
+  try {
+    await fetch(`${API}/worktimer/toggle`, {method:'POST'});
+    await fetchStatus();
+    loadSummary();
+    toast(status.workTimer?.running ? '▶ Timer gestartet' : '⏹ Timer gestoppt');
+  } catch(_) { toast('❌ Backend nicht erreichbar','#ef4444'); }
+}
+
+// ── Projekt wählen ────────────────────────────────────────────────────────────
+async function selectProject(projectId) {
+  try {
+    await fetch(`${API}/project/select`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({projectId})
+    });
+    await fetchStatus();
+    loadSummary();
+  } catch(_) { toast('❌ Backend nicht erreichbar','#ef4444'); }
+}
+
+// ── Projekte ──────────────────────────────────────────────────────────────────
+async function fetchProjects() {
+  try {
+    const r = await fetch(`${API}/projects`);
+    projects = await r.json();
+    renderProjectGrid();
+    renderConfigPage();
+  } catch(_) {}
+}
+
+function renderProjectGrid() {
+  const grid = document.getElementById('projectGrid');
+  if (!projects.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Projekte – unter ⚙️ Konfiguration anlegen</div>';
+    return;
+  }
+  grid.innerHTML = projects.map(p => `
+    <button class="proj-btn" data-id="${p.id}" onclick="selectProject('${p.id}')"
+      style="--pc:${p.color}">
+      <div class="pind"></div>
+      <div class="pname" style="color:${p.color}">${escHtml(p.name)}</div>
+      ${p.kostenstelle ? `<div class="psub">${escHtml(p.kostenstelle)}</div>` : ''}
+      ${p.taetigkeit   ? `<div class="psub">${escHtml(p.taetigkeit)}</div>` : ''}
+    </button>`).join('');
+}
+
+// ── Konfiguration ─────────────────────────────────────────────────────────────
+// Wir arbeiten mit einer lokalen Kopie die erst beim Speichern ans Backend geht
+let draftProjects = [];
+
+function renderConfigPage() {
+  draftProjects = projects.map(p => ({...p}));
+  renderDraftRows();
+}
+
+function renderDraftRows() {
+  const c = document.getElementById('configProjects');
+  if (!draftProjects.length) {
+    c.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Noch keine Projekte</div>';
+    return;
+  }
+  c.innerHTML = draftProjects.map((p,i) => `
+    <div class="config-item">
+      <input type="color" value="${p.color}" oninput="draftProjects[${i}].color=this.value">
+      <input type="text" value="${escHtml(p.name)}"         placeholder="Projektname *"   oninput="draftProjects[${i}].name=this.value"         style="flex:2;min-width:100px">
+      <input type="text" value="${escHtml(p.kostenstelle)}" placeholder="Kostenstelle"    oninput="draftProjects[${i}].kostenstelle=this.value"  style="flex:2;min-width:100px">
+      <input type="text" value="${escHtml(p.taetigkeit)}"   placeholder="Tätigkeitstyp"   oninput="draftProjects[${i}].taetigkeit=this.value"    style="flex:2;min-width:100px">
+      <button class="del-btn" onclick="draftProjects.splice(${i},1);renderDraftRows()" title="Löschen">🗑</button>
+    </div>`).join('');
+}
+
+function addProjectRow() {
+  draftProjects.push({ id:'new-'+Date.now(), name:'', kostenstelle:'', taetigkeit:'', color: COLORS[draftProjects.length % COLORS.length] });
+  renderDraftRows();
+}
+
+async function saveProjects() {
+  const invalid = draftProjects.filter(p => !p.name.trim());
+  if (invalid.length) { toast('Bitte alle Projektnamen ausfüllen','#ef4444'); return; }
+
+  // Bestehende aktualisieren, neue anlegen, gelöschte entfernen
+  const existingIds = projects.map(p => p.id);
+  const draftIds    = draftProjects.map(p => p.id);
+
+  // Löschen
+  for (const id of existingIds.filter(id => !draftIds.includes(id))) {
+    await fetch(`${API}/projects/${id}`, {method:'DELETE'});
+  }
+  // Anlegen / Aktualisieren
+  for (const p of draftProjects) {
+    if (p.id.startsWith('new-')) {
+      await fetch(`${API}/projects`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
+    } else {
+      await fetch(`${API}/projects/${p.id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(p)});
+    }
+  }
+
+  await fetchProjects();
+  toast('✅ Projekte gespeichert');
+}
+
+// ── Summary & Charts ──────────────────────────────────────────────────────────
+async function loadSummary() {
+  try {
+    const r = await fetch(`${API}/summary?${periodQueryParams()}`);
+    const d = await r.json();
+    document.getElementById('statTotal').textContent    = d.totalHours.toFixed(1);
+    document.getElementById('statProjects').textContent = Object.keys(d.byProject).length;
+    const days = Object.keys(d.byDay).length;
+    document.getElementById('statDays').textContent = days;
+    document.getElementById('statAvg').textContent  = days ? (d.totalHours/days).toFixed(1) : '–';
+    renderCharts(d);
+    renderProjSummary(d);
+  } catch(_) {}
+}
+
+function renderCharts(d) {
+  const pl=Object.keys(d.byProject), pv=pl.map(k=>+d.byProject[k].toFixed(2));
+  const al=Object.keys(d.byActivity), av=al.map(k=>+d.byActivity[k].toFixed(2));
+  mkDonut('chartProject',pl,pv); mkDonut('chartActivity',al,av);
+  const days=Object.keys(d.byDay).sort();
+  mkBar('chartDay',days.map(d=>d.slice(5)),days.map(d=>+d.byDay?.[d]?.toFixed(2)||0));
+  // fix: byDay is flat obj
+  mkBar('chartDay',days.map(x=>x.slice(5)),days.map(x=>+(d.byDay[x]||0).toFixed(2)));
+}
+
+function mkDonut(id,labels,values) {
+  if(charts[id])charts[id].destroy();
+  charts[id]=new Chart(document.getElementById(id),{type:'doughnut',data:{labels,datasets:[{data:values,backgroundColor:COLORS,borderWidth:2,borderColor:'#1a1d27'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'right',labels:{color:'#9ca3af',font:{size:11},padding:10,boxWidth:12}},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed.toFixed(1)}h`}}}}});
+}
+
+function mkBar(id,labels,values) {
+  if(charts[id])charts[id].destroy();
+  charts[id]=new Chart(document.getElementById(id),{type:'bar',data:{labels,datasets:[{data:values,backgroundColor:'#6366f155',borderColor:'#6366f1',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.y.toFixed(1)}h`}}},scales:{x:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'#2e3148'}},y:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'#2e3148'},beginAtZero:true}}}});
+}
+
+function renderProjSummary(d) {
+  const el = document.getElementById('projSummary');
+  const list = Object.entries(d.byProject).sort((a,b)=>b[1]-a[1]);
+  if(!list.length){el.innerHTML='<div class="empty">Keine Daten für diesen Monat</div>';return;}
+  const maxH = list[0][1];
+  el.innerHTML = list.map(([name,h],i)=>`
+    <div class="proj-row">
+      <div class="cdot" style="background:${COLORS[i%COLORS.length]};width:10px;height:10px"></div>
+      <div class="pname">${escHtml(name)}</div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(h/maxH*100).toFixed(0)}%;background:${COLORS[i%COLORS.length]}"></div></div>
+      <div class="phours">${h.toFixed(1)} h</div>
+    </div>`).join('');
+}
+
+// ── Einträge ──────────────────────────────────────────────────────────────────
+const entryMap = {}; // id → entry object, für Edit-Modal
+
+async function loadEntries() {
+  try {
+    const r = await fetch(`${API}/entries?month=${currentMonth}`);
+    const entries = await r.json();
+    const tbody = document.getElementById('entriesBody');
+    if(!entries.length){tbody.innerHTML='<tr><td colspan="9" class="empty">Keine Einträge</td></tr>';return;}
+    // Map befüllen
+    entries.forEach(e => entryMap[e.id] = e);
+    tbody.innerHTML=[...entries].reverse().map(e=>{
+      const s=new Date(e.startTime), en=e.endTime?new Date(e.endTime):null;
+      const running = !e.endTime;
+      return `<tr>
+        <td>${s.toLocaleDateString('de-DE')}</td>
+        <td>${s.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</td>
+        <td>${en?en.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}):'⏺ läuft'}</td>
+        <td style="font-variant-numeric:tabular-nums">${e.duration?fmtSec(e.duration):'–'}</td>
+        <td><span class="cdot" style="background:${e.color||'#6366f1'}"></span>${escHtml(e.projectName||'')}</td>
+        <td>${escHtml(e.kostenstelle||'')}</td>
+        <td>${escHtml(e.taetigkeit||'')}</td>
+        <td><input class="note-in" value="${escHtml(e.note||'')}" placeholder="Notiz..." onchange="updateNote('${e.id}',this.value)"></td>
+        <td style="display:flex;gap:4px;align-items:center">
+          ${!running ? `<button class="del-btn" title="Bearbeiten" onclick="openEditModal('${e.id}')">✏️</button>` : ''}
+          <button class="del-btn" onclick="delEntry('${e.id}')">🗑</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(_){}
+}
+
+async function updateNote(id,note){try{await fetch(`${API}/entries/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note})});}catch(_){}}
+async function delEntry(id){if(!confirm('Eintrag löschen?'))return;await fetch(`${API}/entries/${id}`,{method:'DELETE'});toast('🗑 Eintrag gelöscht');loadEntries();loadSummary();}
+
+// ── Eintrag bearbeiten ────────────────────────────────────────────────────────
+function openEditModal(id) {
+  const e = entryMap[id];
+  if (!e) return;
+  document.getElementById('modalManualTitle').textContent = '✏️ Eintrag bearbeiten';
+  document.getElementById('manEditId').value = e.id;
+
+  const sel = document.getElementById('manProject');
+  sel.innerHTML = '<option value="">– Kein Projekt –</option>' +
+    projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+  sel.value = e.projectId || '';
+
+  document.getElementById('manDate').value         = e.startTime.slice(0,10);
+  document.getElementById('manStart').value        = e.startTime.slice(11,16);
+  document.getElementById('manEnd').value          = e.endTime ? e.endTime.slice(11,16) : '';
+  document.getElementById('manKostenstelle').value = e.kostenstelle || '';
+  document.getElementById('manTaetigkeit').value   = e.taetigkeit   || '';
+  document.getElementById('manNote').value         = e.note         || '';
+
+  document.getElementById('modalManual').style.display = 'flex';
+}
+
+// ── Manueller Eintrag ─────────────────────────────────────────────────────────
+function openManualModal() {
+  document.getElementById('modalManualTitle').textContent = '✏️ Eintrag hinzufügen';
+  document.getElementById('manEditId').value = '';
+  document.getElementById('manDate').value   = new Date().toISOString().slice(0,10);
+  document.getElementById('manStart').value  = '';
+  document.getElementById('manEnd').value    = '';
+  document.getElementById('manKostenstelle').value = '';
+  document.getElementById('manTaetigkeit').value   = '';
+  document.getElementById('manNote').value   = '';
+  const sel = document.getElementById('manProject');
+  sel.innerHTML = '<option value="">– Kein Projekt –</option>' +
+    projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+  document.getElementById('modalManual').style.display = 'flex';
+}
+
+// Wenn ein Projekt gewählt wird, Kostenstelle/Tätigkeit automatisch vorschlagen
+document.getElementById('manProject').addEventListener('change', function() {
+  const proj = projects.find(p => p.id === this.value);
+  if (proj) {
+    if (!document.getElementById('manKostenstelle').value)
+      document.getElementById('manKostenstelle').value = proj.kostenstelle || '';
+    if (!document.getElementById('manTaetigkeit').value)
+      document.getElementById('manTaetigkeit').value = proj.taetigkeit || '';
+  }
+});
+
+async function submitManual() {
+  const editId = document.getElementById('manEditId').value;
+  const date   = document.getElementById('manDate').value;
+  const st     = document.getElementById('manStart').value;
+  const et     = document.getElementById('manEnd').value;
+  if(!date||!st||!et){toast('Datum, Start und Ende sind Pflichtfelder','#ef4444');return;}
+
+  const projId = document.getElementById('manProject').value;
+  const proj   = projects.find(p=>p.id===projId);
+
+  // Kostenstelle/Tätigkeit: Manuelle Eingabe hat Vorrang, sonst Projektvorgabe
+  const kostenstelle = document.getElementById('manKostenstelle').value || (proj?proj.kostenstelle:'');
+  const taetigkeit   = document.getElementById('manTaetigkeit').value   || (proj?proj.taetigkeit:'');
+
+  const entry = {
+    projectId:    projId||null,
+    projectName:  proj ? proj.name : 'Kein Projekt',
+    kostenstelle,
+    taetigkeit,
+    color:        proj ? proj.color : '#6b7280',
+    startTime:    `${date}T${st}:00`,
+    endTime:      `${date}T${et}:00`,
+    note:         document.getElementById('manNote').value,
+  };
+  entry.duration = Math.round((new Date(entry.endTime)-new Date(entry.startTime))/1000);
+  if(entry.duration<=0){toast('Ende muss nach Start liegen','#ef4444');return;}
+
+  if (editId) {
+    // Bearbeiten: PUT
+    await fetch(`${API}/entries/${editId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(entry)});
+    toast('✅ Eintrag aktualisiert');
+  } else {
+    // Neu: POST
+    await fetch(`${API}/entries`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(entry)});
+    toast('✅ Eintrag gespeichert');
+  }
+
+  document.getElementById('modalManual').style.display = 'none';
+  loadEntries(); loadSummary();
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportXLSX() {
+  const onEntries = document.getElementById('page-entries').classList.contains('active');
+  const params = onEntries ? `month=${currentMonth}` : periodQueryParams();
+  window.location.href = `${API}/export/xlsx?${params}`;
+}
+
+function exportCSV() {
+  const onEntries = document.getElementById('page-entries').classList.contains('active');
+  const params = onEntries ? `month=${currentMonth}` : periodQueryParams();
+  window.location.href = `${API}/export/csv?${params}`;
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function fmtSec(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return`${pad(h)}:${pad(m)}:${pad(sec)}`;}
+function pad(n){return String(n).padStart(2,'0');}
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function toast(msg,bg){const el=document.getElementById('toast');el.textContent=msg;el.style.background=bg||'var(--green)';el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
+</script>
 </body>
 </html>
